@@ -1,170 +1,92 @@
 package com.diz.sw01.custom;
-
 import android.Manifest;
-import android.app.Activity;
+import android.app.*;
 import android.bluetooth.*;
 import android.bluetooth.le.*;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.os.*;
+import android.content.*;
 import android.graphics.Color;
-import android.view.View;
+import android.os.*;
+import android.util.Log;
 import android.widget.*;
 import java.util.*;
+import java.text.SimpleDateFormat;
 
-/** Foreground, user-operated BLE scan/connect/disconnect test. No vendor SDK or data upload. */
 public final class MainActivity extends Activity {
-    private final Handler ui = new Handler(Looper.getMainLooper());
-    private final Map<String, BluetoothDevice> devices = new LinkedHashMap<>();
-    private BluetoothAdapter adapter;
-    private BluetoothLeScanner scanner;
-    private BluetoothGatt gatt;
-    private LinearLayout deviceRows;
-    private TextView status;
-    private Button scanButton;
-    private boolean scanning;
-    private boolean destroyed;
-    private final Runnable stopLater = new Runnable() { public void run() { stopScan(); } };
-
-    @Override public void onCreate(Bundle state) {
-        super.onCreate(state);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20), dp(48), dp(20), dp(28));
-        root.setBackgroundColor(Color.rgb(244, 247, 251));
-        root.setFitsSystemWindows(true);
-        TextView title = text("Diz SW01 BLE Test", 25);
-        root.addView(title);
-        root.addView(text("워치 검색 · BLE 연결 · 연결 해제", 16));
-        root.addView(text("근처 기기 권한만 사용합니다. 광고·계정·서버 통신이 없습니다. 제조사 바인딩과 건강 데이터 동기화는 포함하지 않은 연결 시험입니다.", 14));
-        status = text("검색을 눌러 시작하세요.", 16);
-        status.setPadding(0, dp(16), 0, dp(12));
-        root.addView(status);
-        scanButton = button("워치 검색 (20초)");
-        scanButton.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { beginScan(); } });
-        root.addView(scanButton);
-        Button stop = button("검색 중지");
-        stop.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { stopScan(); } });
-        root.addView(stop);
-        Button disconnect = button("연결 해제");
-        disconnect.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { disconnect(); } });
-        root.addView(disconnect);
-        root.addView(text("검색된 기기를 누르면 그 기기에만 연결을 시도합니다.", 13));
-        ScrollView scroll = new ScrollView(this);
-        deviceRows = new LinearLayout(this);
-        deviceRows.setOrientation(LinearLayout.VERTICAL);
-        scroll.addView(deviceRows);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(root);
-        BluetoothManager manager = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
-        adapter = manager == null ? null : manager.getAdapter();
-        if (adapter == null) { say("이 기기에서 Bluetooth를 사용할 수 없습니다."); scanButton.setEnabled(false); }
-    }
-
-    private int dp(int value) { return (int)(value * getResources().getDisplayMetrics().density + .5f); }
-    private TextView text(String value, int size) {
-        TextView view = new TextView(this); view.setText(value); view.setTextSize(size);
-        view.setTextColor(Color.rgb(25, 43, 65)); view.setPadding(0, dp(4), 0, dp(4)); return view;
-    }
-    private Button button(String label) { Button b = new Button(this); b.setText(label); b.setAllCaps(false); return b; }
-    private void say(final String message) {
-        ui.post(new Runnable() { public void run() { if (!destroyed) status.setText(message); } });
-    }
-    private boolean permissionsReady() {
-        if (Build.VERSION.SDK_INT >= 31) return checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
-                && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED;
-        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-    }
-    private void beginScan() {
-        if (adapter == null) return;
-        if (!permissionsReady()) {
-            requestPermissions(Build.VERSION.SDK_INT >= 31
-                ? new String[]{Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT}
-                : new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 10);
-            return;
-        }
-        try {
-            if (!adapter.isEnabled()) { startActivityForResult(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), 11); return; }
-            stopScan(); devices.clear(); deviceRows.removeAllViews();
-            scanner = adapter.getBluetoothLeScanner();
-            if (scanner == null) { say("Bluetooth 검색을 시작할 수 없습니다."); return; }
-            ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
-            scanning = true;
-            scanner.startScan(null, settings, scanCallback);
-            scanButton.setEnabled(false); say("근처 BLE 기기 검색 중…");
-            ui.postDelayed(stopLater, 20000);
-        } catch (SecurityException e) { scanning = false; scanButton.setEnabled(true); say("근처 기기 권한을 허용해 주세요."); }
-          catch (RuntimeException e) { scanning = false; scanButton.setEnabled(true); say("검색 시작 실패: " + e.getClass().getSimpleName()); }
-    }
-    private void stopScan() {
-        ui.removeCallbacks(stopLater);
-        if (scanning && scanner != null) { try { scanner.stopScan(scanCallback); } catch (RuntimeException ignored) {} }
-        boolean wasScanning = scanning; scanning = false;
-        if (scanButton != null && adapter != null) scanButton.setEnabled(true);
-        if (wasScanning) say("검색 종료 · 발견 " + devices.size() + "개. 이름을 확인한 후 기기를 누르세요.");
-    }
-    private final ScanCallback scanCallback = new ScanCallback() {
-        @Override public void onScanResult(int type, final ScanResult result) {
-            ui.post(new Runnable() { public void run() {
-                if (!scanning || destroyed) return;
-                final BluetoothDevice device = result.getDevice();
-                try {
-                    String address = device.getAddress();
-                    if (devices.containsKey(address)) return;
-                    devices.put(address, device);
-                    String name = result.getScanRecord() == null ? null : result.getScanRecord().getDeviceName();
-                    if (name == null || name.length() == 0) name = device.getName();
-                    if (name == null || name.length() == 0) name = "이름 없는 BLE 기기";
-                    Button row = button(name + "\n" + address + " · " + result.getRssi() + " dBm");
-                    row.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { connect(device); } });
-                    deviceRows.addView(row);
-                } catch (SecurityException e) { say("근처 기기 권한이 취소됐습니다."); stopScan(); }
-            }});
-        }
-        @Override public void onScanFailed(final int error) { ui.post(new Runnable() { public void run() { stopScan(); say("검색 실패 코드: " + error); } }); }
-    };
-    private void connect(BluetoothDevice device) {
-        stopScan(); disconnect();
-        try { say("BLE 연결 시도 중…"); gatt = device.connectGatt(this, false, gattCallback, BluetoothDevice.TRANSPORT_LE); if (gatt == null) say("연결 객체를 생성하지 못했습니다."); }
-        catch (SecurityException e) { say("Bluetooth 연결 권한이 필요합니다."); }
-        catch (RuntimeException e) { say("연결 시작 실패: " + e.getClass().getSimpleName()); }
-    }
-    private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
-        @Override public void onConnectionStateChange(final BluetoothGatt connection, final int error, final int state) {
-            ui.post(new Runnable() { public void run() {
-                if (destroyed || connection != gatt) return;
-                if (error == BluetoothGatt.GATT_SUCCESS && state == BluetoothProfile.STATE_CONNECTED) {
-                    say("BLE 연결됨 · 서비스 확인 중…");
-                    try { if (!connection.discoverServices()) say("BLE 연결됨 · 서비스 조회를 시작하지 못했습니다."); }
-                    catch (SecurityException e) { say("서비스 조회 권한이 없습니다."); }
-                } else if (state == BluetoothProfile.STATE_DISCONNECTED || error != BluetoothGatt.GATT_SUCCESS) {
-                    gatt = null; connection.close(); say("연결 종료 · GATT 상태 코드 " + error);
-                }
-            }});
-        }
-        @Override public void onServicesDiscovered(final BluetoothGatt connection, final int error) {
-            ui.post(new Runnable() { public void run() {
-                if (destroyed || connection != gatt) return;
-                if (error != BluetoothGatt.GATT_SUCCESS) { say("BLE 연결됨 · 서비스 조회 실패 " + error); return; }
-                List<BluetoothGattService> services = connection.getServices();
-                StringBuilder message = new StringBuilder("BLE 연결 성공 · GATT 서비스 " + services.size() + "개\n");
-                for (int i=0; i<Math.min(services.size(), 4); i++) message.append(services.get(i).getUuid()).append('\n');
-                message.append("제조사 바인딩·건강 동기화 성공을 뜻하지는 않습니다."); say(message.toString());
-            }});
-        }
-    };
-    private void disconnect() {
-        BluetoothGatt old = gatt; gatt = null;
-        if (old != null) { try { old.disconnect(); } catch (RuntimeException ignored) {} finally { old.close(); } }
-        say("연결 해제됨");
-    }
-    @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
-        super.onRequestPermissionsResult(request, permissions, results);
-        if (request == 10) { if (permissionsReady()) beginScan(); else say("검색하려면 근처 기기 권한이 필요합니다."); }
-    }
-    @Override protected void onActivityResult(int request, int result, Intent data) {
-        super.onActivityResult(request, result, data); if (request == 11 && result == RESULT_OK) beginScan();
-    }
-    @Override protected void onPause() { stopScan(); super.onPause(); }
-    @Override protected void onDestroy() { destroyed = true; stopScan(); disconnect(); ui.removeCallbacksAndMessages(null); super.onDestroy(); }
+ private static UUID uuid(String s){return UUID.fromString(s);}
+ private static final UUID SERVICE=uuid("6e400001-b5a3-f393-e0a9-e50e24dcca9e"),WRITE=uuid("6e400002-b5a3-f393-e0a9-e50e24dcca9e"),NOTIFY=uuid("6e400003-b5a3-f393-e0a9-e50e24dcca9e"),CCCD=uuid("00002902-0000-1000-8000-00805f9b34fb");
+ private final Handler ui=new Handler(Looper.getMainLooper());
+ private BluetoothAdapter adapter;private BluetoothLeScanner scanner;private BluetoothGatt gatt;private BluetoothGattCharacteristic writeChar;
+ private TextView status,heart,steps,battery,detail,logView;private LinearLayout rows;private Button scanButton,readButton,heartButton,stopButton;
+ private boolean scanning,destroyed,ready,session,measuring;private int received,heartRecords,generation;private long latestHeartTime=-1,opSequence;
+ private final Map<String,Button> devices=new LinkedHashMap<>();private final Map<String,SmaProtocol.Activity> activities=new LinkedHashMap<>();
+ private final SmaProtocol.Decoder decoder=new SmaProtocol.Decoder();private final ArrayDeque<Op> operations=new ArrayDeque<>();private Op active;
+ private final StringBuilder log=new StringBuilder();
+ private final Runnable stopLater=()->stopScan(true),measurementEnd=()->stopMeasurement();
+ private final Runnable connectTimeout=()->{if(gatt!=null&&!ready){disconnect();say("연결 시간 초과 · 워치가 가까운지 확인해 주세요.");}};
+ private static final class Op {BluetoothGattCharacteristic ch;BluetoothGattDescriptor descriptor;byte[] value;Op(BluetoothGattCharacteristic c,byte[] v){ch=c;value=v;}Op(BluetoothGattDescriptor d,byte[] v){descriptor=d;value=v;}}
+ @Override public void onCreate(Bundle state){super.onCreate(state);ScrollView scroll=new ScrollView(this);LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(20),dp(45),dp(20),dp(35));root.setBackgroundColor(Color.rgb(244,247,251));root.setFitsSystemWindows(true);scroll.addView(root);
+  root.addView(text("워치 센서",27));root.addView(text("SMART PRO 통신 규격 기반 · 0.3.0",13));status=text("워치를 선택해 연결하세요.",16);root.addView(status);
+  heart=card(root,"심박수  — bpm");steps=card(root,"오늘 수신 걸음수  — 걸음");battery=text("워치 배터리  —",15);root.addView(battery);detail=text("아직 센서 데이터를 받지 않았습니다.",13);root.addView(detail);
+  readButton=button(root,"걸음수와 심박 기록 새로고침",()->refresh());heartButton=button(root,"심박 측정 시작 60초",()->startMeasurement());stopButton=button(root,"심박 측정 중지",()->stopMeasurement());button(root,"연결 해제",()->disconnect());scanButton=button(root,"주변 워치 검색 20초",()->beginScan());button(root,"등록된 기기 보기",()->showBonded());button(root,"제조사 세션 연결 다시 시도",()->authenticate());button(root,"새 앱을 워치에 등록",()->confirmBind());
+  root.addView(text("연결할 워치를 누르세요. 등록된 기기를 먼저 표시합니다.",13));rows=new LinearLayout(this);rows.setOrientation(1);root.addView(rows);
+  button(root,"진단 기록 보기",()->logView.setVisibility(logView.getVisibility()==android.view.View.GONE?android.view.View.VISIBLE:android.view.View.GONE));logView=text("",11);logView.setTextIsSelectable(true);logView.setVisibility(android.view.View.GONE);root.addView(logView);
+  root.addView(text("걸음수는 오늘 수신한 활동 기록의 합계입니다. 워치의 하루 전체 기록과 다를 수 있습니다. 의료적 진단에 사용하지 마세요.",12));setContentView(scroll);
+  BluetoothManager manager=(BluetoothManager)getSystemService(BLUETOOTH_SERVICE);adapter=manager==null?null:manager.getAdapter();updateButtons();if(adapter==null)say("Bluetooth를 지원하지 않습니다.");else if(permissionsReady())showBonded();
+ }
+ private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
+ private TextView text(String s,int size){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(Color.rgb(25,43,65));t.setPadding(0,dp(6),0,dp(6));return t;}
+ private TextView card(LinearLayout p,String s){TextView t=text(s,23);t.setBackgroundColor(Color.WHITE);t.setPadding(dp(12),dp(10),dp(12),dp(10));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=dp(8);p.addView(t,lp);return t;}
+ private Button button(LinearLayout p,String s,Runnable action){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setOnClickListener(v->action.run());p.addView(b);return b;}
+ private void say(String s){if(!destroyed)status.setText(s);note(s);}
+ private void note(String s){log.append(new SimpleDateFormat("HH:mm:ss",Locale.KOREA).format(new Date())).append(' ').append(s).append('\n');if(log.length()>9000)log.delete(0,log.length()-8000);if(logView!=null)logView.setText(log.toString());Log.i("WatchLink",s);}
+ private void updateButtons(){if(readButton==null)return;readButton.setEnabled(ready);heartButton.setEnabled(ready&&!measuring);stopButton.setEnabled(ready&&measuring);scanButton.setEnabled(adapter!=null&&!scanning);}
+ private boolean permissionsReady(){return Build.VERSION.SDK_INT>=31?checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN)==0&&checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)==0:checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==0;}
+ private boolean ensurePermissions(){if(permissionsReady())return true;requestPermissions(Build.VERSION.SDK_INT>=31?new String[]{Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT}:new String[]{Manifest.permission.ACCESS_FINE_LOCATION},10);return false;}
+ private void showBonded(){if(adapter==null||!ensurePermissions())return;try{rows.removeAllViews();devices.clear();String last=getPreferences(0).getString("lastAddress","");if(!last.isEmpty())addDevice(adapter.getRemoteDevice(last),"이전 연결",null);for(BluetoothDevice d:adapter.getBondedDevices())addDevice(d,"등록됨",null);if(devices.isEmpty())say("등록된 기기가 없습니다. 주변 워치를 검색하세요.");}catch(SecurityException e){say("근처 기기 권한을 허용해 주세요.");}}
+ private void addDevice(BluetoothDevice d,String source,ScanResult r){try{String a=d.getAddress(),name=d.getName();if(r!=null&&r.getScanRecord()!=null&&r.getScanRecord().getDeviceName()!=null)name=r.getScanRecord().getDeviceName();if(name==null||name.isEmpty())name="이름 없는 BLE 기기";String label=name+" · "+source+(r==null?"":" · "+r.getRssi()+" dBm")+"\n"+a;Button b=devices.get(a);if(b!=null){b.setText(label);return;}b=new Button(this);b.setAllCaps(false);b.setText(label);b.setOnClickListener(v->connect(d));devices.put(a,b);if(!name.startsWith("이름 없는"))rows.addView(b,0);else rows.addView(b);}catch(SecurityException e){say("기기 정보 권한이 없습니다.");}}
+ private void beginScan(){if(adapter==null||!ensurePermissions())return;try{if(!adapter.isEnabled()){startActivityForResult(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE),11);return;}stopScan(false);showBonded();scanner=adapter.getBluetoothLeScanner();if(scanner==null){say("검색기를 열지 못했습니다.");return;}scanning=true;scanner.startScan(null,new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(),scanCallback);updateButtons();say("주변 BLE 워치 검색 중…");ui.postDelayed(stopLater,20000);}catch(RuntimeException e){scanning=false;updateButtons();say("검색 실패 "+e.getClass().getSimpleName());}}
+ private void stopScan(boolean report){ui.removeCallbacks(stopLater);boolean was=scanning;scanning=false;if(was&&scanner!=null)try{scanner.stopScan(scanCallback);}catch(RuntimeException ignored){}updateButtons();if(was&&report)say("검색 완료 · 기기 "+devices.size()+"개. 워치를 선택하세요.");}
+ private final ScanCallback scanCallback=new ScanCallback(){@Override public void onScanResult(int type,ScanResult r){ui.post(()->{if(scanning&&!destroyed)addDevice(r.getDevice(),"검색됨",r);});}@Override public void onScanFailed(int code){ui.post(()->{stopScan(false);say("검색 실패 코드 "+code);});}};
+ private void connect(BluetoothDevice d){if(!ensurePermissions())return;stopScan(false);disconnect();activities.clear();heartRecords=0;latestHeartTime=-1;heart.setText("심박수  — bpm");steps.setText("오늘 수신 걸음수  — 걸음");battery.setText("워치 배터리  —");detail.setText("워치 응답 대기 중");received=0;try{getPreferences(0).edit().putString("lastAddress",d.getAddress()).apply();say("워치 BLE 연결 중…");gatt=d.connectGatt(this,false,callback,BluetoothDevice.TRANSPORT_LE);ui.postDelayed(connectTimeout,20000);}catch(RuntimeException e){say("연결 실패 "+e.getClass().getSimpleName());}}
+ private void disconnect(){ui.removeCallbacks(connectTimeout);ui.removeCallbacks(measurementEnd);generation++;operations.clear();active=null;ready=false;session=false;measuring=false;writeChar=null;decoder.reset();BluetoothGatt old=gatt;gatt=null;if(old!=null){try{old.disconnect();}catch(RuntimeException ignored){}try{old.close();}catch(RuntimeException ignored){}}updateButtons();say("연결 해제됨 · 표시 값은 마지막 수신 기록입니다.");}
+ private boolean current(BluetoothGatt g){return !destroyed&&g==gatt;}
+ private final BluetoothGattCallback callback=new BluetoothGattCallback(){
+  @Override public void onConnectionStateChange(BluetoothGatt g,int error,int state){ui.post(()->{if(!current(g))return;if(error==0&&state==BluetoothProfile.STATE_CONNECTED){say("BLE 연결됨 · 서비스 확인 중");try{if(!g.discoverServices()){disconnect();say("서비스 조회 시작 실패");}}catch(RuntimeException e){disconnect();say("서비스 조회 권한 오류");}}else if(state==BluetoothProfile.STATE_DISCONNECTED||error!=0){disconnect();say("BLE 연결 종료 · GATT "+error);}});}
+  @Override public void onServicesDiscovered(BluetoothGatt g,int error){ui.post(()->{if(!current(g))return;if(error!=0){say("서비스 탐색 실패 "+error);return;}StringBuilder ss=new StringBuilder();for(BluetoothGattService s:g.getServices())ss.append(s.getUuid()).append(' ');note("GATT 서비스 "+ss);BluetoothGattService s=g.getService(SERVICE);if(s==null){setupStandardHeart(g);return;}writeChar=s.getCharacteristic(WRITE);BluetoothGattCharacteristic n=s.getCharacteristic(NOTIFY);if(writeChar==null||n==null){say("제조사 통신 특성을 찾지 못했습니다.");return;}if(!subscribe(g,n)){say("센서 알림 등록 실패");return;}say("제조사 센서 알림 활성화 중…");});}
+  @Override public void onDescriptorWrite(BluetoothGatt g,BluetoothGattDescriptor d,int code){ui.post(()->{if(!current(g))return;boolean setup=d.getUuid().equals(CCCD)&&active!=null&&active.descriptor==d;finish(code);if(setup&&code==0&&current(g)){int gen=generation;ui.postDelayed(()->{if(current(g)&&gen==generation){try{if(!g.requestMtu(247))completeSetup(g);}catch(RuntimeException e){completeSetup(g);}ui.postDelayed(()->{if(current(g)&&gen==generation)completeSetup(g);},3000);}},1000);}});}
+  @Override public void onMtuChanged(BluetoothGatt g,int mtu,int code){ui.post(()->{if(current(g)){note("MTU "+mtu+" status "+code);completeSetup(g);}});}
+  @Override public void onCharacteristicWrite(BluetoothGatt g,BluetoothGattCharacteristic c,int code){ui.post(()->{if(current(g))finish(code);});}
+  @Override public void onCharacteristicChanged(BluetoothGatt g,BluetoothGattCharacteristic c,byte[] v){byte[] copy=v.clone();ui.post(()->{if(current(g))receive(c,copy);});}
+  @Override public void onCharacteristicChanged(BluetoothGatt g,BluetoothGattCharacteristic c){if(Build.VERSION.SDK_INT<33){byte[] copy=c.getValue();if(copy!=null)ui.post(()->{if(current(g))receive(c,copy);});}}
+ };
+ private void completeSetup(BluetoothGatt g){if(!current(g)||ready)return;ready=true;ui.removeCallbacks(connectTimeout);updateButtons();say("센서 알림 준비 완료");if(writeChar!=null)authenticate();else say("표준 심박 알림 수신 대기 중");}
+ private boolean subscribe(BluetoothGatt g,BluetoothGattCharacteristic c){try{BluetoothGattDescriptor d=c.getDescriptor(CCCD);if(d==null||!g.setCharacteristicNotification(c,true))return false;enqueue(new Op(d,(c.getProperties()&BluetoothGattCharacteristic.PROPERTY_NOTIFY)!=0?BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE:BluetoothGattDescriptor.ENABLE_INDICATION_VALUE));return true;}catch(RuntimeException e){note("알림 설정 오류 "+e.getClass().getSimpleName());return false;}}
+ private void setupStandardHeart(BluetoothGatt g){BluetoothGattService s=g.getService(uuid("0000180d-0000-1000-8000-00805f9b34fb"));BluetoothGattCharacteristic c=s==null?null:s.getCharacteristic(uuid("00002a37-0000-1000-8000-00805f9b34fb"));if(c!=null&&subscribe(g,c))say("표준 심박 서비스 알림 준비 중");else say("연결됨 · 이 기기에는 지원하는 센서 서비스가 없습니다.");}
+ private void enqueue(Op op){if(gatt==null)return;operations.add(op);pump();}
+ private void pump(){if(gatt==null||active!=null||operations.isEmpty())return;active=operations.remove();final long seq=++opSequence;final int gen=generation;boolean ok=false;try{if(active.descriptor!=null){if(Build.VERSION.SDK_INT>=33)ok=gatt.writeDescriptor(active.descriptor,active.value)==0;else{active.descriptor.setValue(active.value);ok=gatt.writeDescriptor(active.descriptor);}}else{int type=(active.ch.getProperties()&BluetoothGattCharacteristic.PROPERTY_WRITE)!=0?BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT:BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE;if(Build.VERSION.SDK_INT>=33)ok=gatt.writeCharacteristic(active.ch,active.value,type)==0;else{active.ch.setWriteType(type);active.ch.setValue(active.value);ok=gatt.writeCharacteristic(active.ch);}}}catch(RuntimeException e){note("GATT 요청 오류 "+e.getClass().getSimpleName());}if(!ok){abortIo("GATT 요청 시작 실패 · 다시 연결하세요.");return;}ui.postDelayed(()->{if(gen==generation&&seq==opSequence&&active!=null)abortIo("GATT 요청 시간 초과 · 다시 연결하세요.");},8000);}
+ private void abortIo(String s){disconnect();say(s);}
+ private void finish(int code){if(active==null)return;active=null;opSequence++;if(code!=0){abortIo("GATT 전송 실패 "+code);return;}pump();}
+ private void send(int key,int flag,byte[] data){sendPacket(key,flag,data,false);}
+ private void sendPacket(int key,int flag,byte[] data,boolean reply){if(!ready||writeChar==null){if(!reply)say("제조사 센서 연결이 준비되지 않았습니다.");return;}byte[] f=SmaProtocol.frame(key,flag,data,reply);note(String.format(Locale.US,"TX %04X flag %02X %s",key,flag,reply?"ACK":""));for(int p=0;p<f.length;p+=20)enqueue(new Op(writeChar,Arrays.copyOfRange(f,p,Math.min(p+20,f.length))));}
+ private void authenticate(){if(!ready||writeChar==null){say("먼저 워치를 연결해 주세요.");return;}session=false;long cached=getPreferences(0).getLong("sessionId:"+gatt.getDevice().getAddress(),getPreferences(0).getLong("localId",-1));if(cached>=0)send(SmaProtocol.SESSION,SmaProtocol.CREATE,SmaProtocol.int32(cached));else send(SmaProtocol.IDENTITY,SmaProtocol.READ,null);replyTimeout("기기 정보 응답 없음 · 원래 앱이 워치를 사용 중인지 확인하세요.");}
+ private void replyTimeout(String s){int before=received,gen=generation;ui.postDelayed(()->{if(gen==generation&&ready&&received==before)say(s);},10000);}
+ private void confirmBind(){if(!ready||writeChar==null){say("먼저 워치를 연결해 주세요.");return;}new AlertDialog.Builder(this).setTitle("워치에 앱 등록").setMessage("원래 앱의 등록 절차를 사용합니다. 워치에서 확인을 요구하거나 기존 앱의 연결 등록이 바뀔 수 있습니다. 계속할까요?").setNegativeButton("취소",null).setPositiveButton("등록",(d,w)->{long id=getPreferences(0).getLong("localId",0);if(id==0){id=new java.security.SecureRandom().nextInt(Integer.MAX_VALUE-1)+1;getPreferences(0).edit().putLong("localId",id).apply();}send(SmaProtocol.IDENTITY,SmaProtocol.CREATE,SmaProtocol.int32(id));say("워치 등록 응답 대기 · 워치 화면도 확인하세요.");}).show();}
+ private void refresh(){if(!ready)return;if(writeChar==null){say("이 기기는 표준 심박 알림만 지원합니다.");return;}send(SmaProtocol.ACTIVITY,SmaProtocol.READ,null);send(SmaProtocol.HEART_HISTORY,SmaProtocol.READ,null);send(SmaProtocol.POWER,SmaProtocol.READ,null);say("워치 기록 요청 중 · 실제 수신 값만 표시합니다.");replyTimeout("기록 응답 없음 · 세션 연결과 워치 착용 상태를 확인하세요.");}
+ private void startMeasurement(){if(!ready||writeChar==null){say("제조사 센서 서비스 연결이 필요합니다.");return;}measuring=true;updateButtons();send(SmaProtocol.MEASUREMENT,SmaProtocol.UPDATE,new byte[]{0x41});say("심박 측정 요청 · 워치를 착용하고 움직임을 줄여주세요.");ui.removeCallbacks(measurementEnd);ui.postDelayed(measurementEnd,60000);}
+ private void stopMeasurement(){ui.removeCallbacks(measurementEnd);if(measuring&&ready&&writeChar!=null)send(SmaProtocol.MEASUREMENT,SmaProtocol.UPDATE,new byte[]{0});measuring=false;updateButtons();}
+ private void receive(BluetoothGattCharacteristic c,byte[] data){if(c.getUuid().toString().startsWith("00002a37")){if(data.length>=2){int n=(data[0]&1)==0?SmaProtocol.u(data[1]):data.length>=3?SmaProtocol.u(data[1])|(SmaProtocol.u(data[2])<<8):-1;showHeart(n,System.currentTimeMillis(),"표준 심박 알림");}return;}if(!c.getUuid().equals(NOTIFY))return;int before=decoder.rejected;for(SmaProtocol.Packet p:decoder.feed(data))handle(p);if(decoder.rejected>before)note("형식 검사에서 제외한 바이트 "+(decoder.rejected-before));}
+ private void handle(SmaProtocol.Packet p){received++;note(String.format(Locale.US,"RX %04X flag %02X length %d reply %s",p.key,p.flag,p.data.length,p.reply));if(p.nack){say("워치 요청 거절 · "+String.format("%04X",p.key));return;}if(!p.reply)sendPacket(p.key,p.flag,null,true);byte[] d=p.data;try{
+  if(p.key==SmaProtocol.IDENTITY&&d.length>=1){note("워치 등록 상태 코드 "+SmaProtocol.u(d[0]));if(d[0]!=0){say("워치 등록 거절 또는 확인 시간 초과 · 워치 화면을 확인하세요.");return;}if((p.flag==SmaProtocol.READ||p.flag==SmaProtocol.UPDATE)&&d.length>=5){long id=SmaProtocol.be32(d,1);getPreferences(0).edit().putLong("sessionId:"+gatt.getDevice().getAddress(),id).apply();send(SmaProtocol.SESSION,SmaProtocol.CREATE,SmaProtocol.int32(id));say("워치 정보 수신 · 제조사 세션 연결 중");}else if(p.flag==SmaProtocol.CREATE)say("등록 요청 접수 · 워치에서 연결을 허용해 주세요.");}
+  else if(p.key==SmaProtocol.SESSION&&p.flag==SmaProtocol.CREATE&&d.length>=1){session=d[0]==0;if(session){say("제조사 세션 연결 성공");refresh();}else say("제조사 세션 거절 · 필요하면 워치 앱 등록을 진행하세요.");}
+  else if((p.key==SmaProtocol.HEART_LIVE&&p.flag==SmaProtocol.UPDATE&&!p.reply)||(p.key==SmaProtocol.HEART_HISTORY&&p.flag==SmaProtocol.READ&&p.reply)){for(SmaProtocol.Heart h:SmaProtocol.hearts(d)){heartRecords++;showHeart(h.bpm,h.millis,p.key==SmaProtocol.HEART_LIVE?"워치 심박 알림":"워치 심박 기록");}if(d.length==0&&latestHeartTime<0)detail.setText("심박 기록 없음 · 심박 측정을 시작하세요.");}
+  else if(p.key==SmaProtocol.ACTIVITY&&p.flag==SmaProtocol.READ&&p.reply){for(SmaProtocol.Activity a:SmaProtocol.activities(d))activities.put(a.id(),a);showSteps();}
+  else if(p.key==SmaProtocol.POWER&&p.flag==SmaProtocol.READ&&d.length>=1){int n=SmaProtocol.u(d[0]);if(n<=100)battery.setText("워치 배터리  "+n+"%");}
+  if(p.key==SmaProtocol.MEASUREMENT&&p.reply&&d.length>0&&d[0]!=0)say("워치가 측정 요청을 거절했습니다.");
+ }catch(IllegalArgumentException e){note("데이터 형식 불일치 · 표시 제외 "+String.format("%04X",p.key));}}
+ private void showHeart(int n,long time,String source){if(n<=0||n>255){note("심박 측정 대기 또는 유효하지 않은 값");return;}if(time<latestHeartTime)return;latestHeartTime=time;heart.setText("심박수  "+n+" bpm");detail.setText(source+" · "+new SimpleDateFormat("MM/dd HH:mm:ss",Locale.KOREA).format(new Date(time))+"\n활동 기록 "+activities.size()+"개 · 심박 기록 "+heartRecords+"개 수신");say("센서 데이터 수신됨");}
+ private void showSteps(){Calendar now=Calendar.getInstance(),c=Calendar.getInstance();long total=0;int today=0;for(SmaProtocol.Activity a:activities.values()){c.setTimeInMillis(a.millis);if(c.get(Calendar.YEAR)==now.get(Calendar.YEAR)&&c.get(Calendar.DAY_OF_YEAR)==now.get(Calendar.DAY_OF_YEAR)){total+=a.steps;today++;}}steps.setText(today==0?"오늘 수신 걸음수  — 걸음":"오늘 수신 걸음수  "+total+" 걸음");detail.setText("수신 활동 기록 "+activities.size()+"개 중 오늘 "+today+"개\n수신 기록의 부분 합계 · 워치 전체 걸음수와 다를 수 있음");say("활동 기록 수신됨");}
+ @Override public void onRequestPermissionsResult(int r,String[] p,int[] result){super.onRequestPermissionsResult(r,p,result);if(r==10){if(permissionsReady())showBonded();else say("근처 기기 권한이 필요합니다.");}}
+ @Override protected void onActivityResult(int r,int result,Intent data){super.onActivityResult(r,result,data);if(r==11&&result==RESULT_OK)beginScan();}
+ @Override protected void onPause(){stopScan(false);stopMeasurement();super.onPause();}
+ @Override protected void onDestroy(){disconnect();destroyed=true;ui.removeCallbacksAndMessages(null);super.onDestroy();}
 }

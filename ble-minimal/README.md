@@ -1,26 +1,38 @@
-# BLE 전용 최소 앱 0.2.0
+# 워치 센서 0.3.0
 
-사용자가 선택한 **검색·연결·연결 해제** 범위만 직접 구현한 독립 Android 앱입니다. 이전 대형 APK에서 Manifest만 지운 버전이 아니며, 이전 앱의 DEX·광고 SDK·네이티브·서버·리소스를 포함하지 않습니다. 공급사 SDK를 유지한 제조사 앱의 기능 축소판이 아니라 Android 표준 BLE API만 사용하는 테스트입니다.
+원본 SMART-TIME PRO의 BLE 규격을 분석해 만든 독립 센서 시험 앱입니다. 사용자의 최신 요구인 **원본 UI와 기능 유지** 버전은 [워치 케어 빌드](../docs/ORIGINAL_UI_BUILD.md)입니다. 이 디렉터리는 통신 검증과 후속 커스터마이징을 위해 보존합니다.
 
-- 앱 ID는 `com.diz.sw01.custom`, 이전 커스텀 버전과 같은 테스트 서명 키를 유지합니다.
-- 0.2.0 / versionCode 2, minSdk 26 / targetSdk 36.
-- Android 12 이상에서는 BLUETOOTH_SCAN·BLUETOOTH_CONNECT만 런타임 요청합니다.
-- Android 11 이하의 BLE 검색에 필요한 기존 Bluetooth·위치 권한은 maxSdkVersion 30으로 제한했습니다.
-- 인터넷·광고·SMS·연락처·통화·마이크·카메라·알림 접근·접근성·계정·서버 통신·백그라운드 서비스가 없습니다.
-- 기기 선택은 사용자가 직접 합니다. 연결 후 GATT 서비스를 조회하며 특성 쓰기·펌웨어 전송은 하지 않습니다.
-- 제조사 인증·바인딩·암호화 명령·건강 기록 동기화는 구현하지 않았습니다. GATT 연결 성공을 Diz-SW01의 전체 연동 성공으로 표시하지 않습니다.
-- 검색 결과는 메모리에만 보관하고 서버로 보내지 않습니다. 검색은 20초 후 또는 앱이 가려지면 중지하며 Activity 종료 시 연결을 정리합니다.
+## 구현과 실기기 확인
 
-## 설치 검증 목적
+- 검색, 등록된 기기 표시, 수동 연결, 서비스 탐색, 연결 해제.
+- 원본 NUS 서비스 UUID, AB 메시지 헤더, CRC16, 응답과 ACK, 기기 등록 및 세션 절차 적용.
+- 원본 형식의 심박 기록 6바이트와 활동 기록 16바이트 해석, 배터리 읽기.
+- 실제 워치에서 제조사 등록·세션 연결, 심박 기록·활동 기록·배터리 응답 수신과 화면 표시 확인.
+- 원본 `BleReadable.timeToMillis`에 맞춰 로컬 시각을 해석. 한국 시간에서 9시간 어긋나는 문제 수정.
+- 심박 측정 시작·중지 요청과 워치 ACK 확인. **새 실시간 심박 알림 수신은 아직 확인하지 못함.** 표시된 심박 기록을 실시간 측정 성공으로 표현하지 않음.
+- 걸음수는 오늘 수신한 활동 기록의 부분 합계. 워치 전체 일일 합계와 일치하는지는 추가 검증 필요. 읽은 기록을 워치에서 삭제하지 않음.
+- 인터넷, 광고 SDK, 원본 DEX, 네이티브 라이브러리와 서버 통신 없음.
 
-발행자 인증서·앱 ID·targetSdk를 이전 커스텀 앱과 같게 유지하면서 제품 기능을 BLE 시험으로 축소했습니다. 설치가 허용되면 기존 인증서가 기기에서 일괄 차단되는 상황이라는 설명은 약해집니다. 그러나 여러 구성 요소가 바뀌었으므로 어떤 권한/SDK가 원인이었는지 단독으로 입증하지는 않습니다. 같은 휴대폰에서 사용자가 정상 설치 UI로 시험하며, 보안 차단을 무시하거나 ADB 강제 설치하는 절차는 포함하지 않습니다.
+## 파일과 수정 위치
 
-## 빌드
+| 파일 | 역할 |
+| --- | --- |
+| `src/com/diz/sw01/custom/MainActivity.java` | 화면과 Bluetooth 권한·검색·연결·GATT 전송 큐·센서 표시 |
+| `src/com/diz/sw01/custom/SmaProtocol.java` | 프레임 생성·CRC·분할 수신·센서 해석·로컬 시각 변환 |
+| `tests/ProtocolTest.java` | CRC 기준값, 센서 레이아웃, 시간대, 모든 분할 경계, 손상·잘린 데이터 검증 |
+| `AndroidManifest.xml` | 앱 ID·표시 이름과 권한 |
+| `build.py` | javac와 D8, AAPT2, zipalign, apksigner 빌드 |
 
-Android API 36 android.jar, AAPT2, D8, zipalign, apksigner와 해당 도구를 실행할 JDK가 필요합니다. `build.py --help`로 인자를 확인하세요. 예시(경로는 자신의 SDK에 맞춥니다):
+앱 ID는 `com.diz.sw01.custom`, versionCode 4, versionName 0.3.0, minSdk 26 / targetSdk 36입니다. 원본 UI 버전 0.4.0은 같은 앱 ID의 상위 버전이므로 설치하면 이 앱을 대체합니다. 기존 원본 앱 `com.sma.smartv3.pro`를 제거하지 않습니다.
+
+## 테스트와 빌드
 
 ```powershell
-python ble-minimal/build.py --android-jar "$env:ANDROID_HOME/platforms/android-36/android.jar" --aapt2 "$env:ANDROID_HOME/build-tools/37.0.0/aapt2.exe" --d8-jar "$env:ANDROID_HOME/build-tools/37.0.0/lib/d8.jar" --zipalign "$env:ANDROID_HOME/build-tools/37.0.0/zipalign.exe" --apksigner-jar "$env:ANDROID_HOME/build-tools/37.0.0/lib/apksigner.jar" --keystore "<본인의 개발용 키 경로>" --output "dist/Diz_SW01_BLE_0.2.0_TEST.apk" --build-dir "work/ble-build"
+javac -encoding UTF-8 -d <test_classes> src/com/diz/sw01/custom/SmaProtocol.java tests/ProtocolTest.java
+java -cp <test_classes> com.diz.sw01.custom.ProtocolTest
+python build.py --android-jar <android.jar> --aapt2 <aapt2.exe> --d8-jar <d8.jar> --zipalign <zipalign.exe> --apksigner-jar <apksigner.jar> --keystore <개인키.jks> --output <Watch_Sensors.apk> --build-dir <새_빌드_디렉터리>
 ```
 
-기본 개발용 alias는 androiddebugkey, 개발용 암호는 android입니다. `DIZ_TEST_STOREPASS` 환경변수로 암호를 전달할 수 있습니다. 운영용 키와 배포 절차는 별도로 관리해야 합니다. 공개 저장소에는 개인키가 없습니다. 게시 APK는 Java 11, API 36, Apktool 번들 AAPT2, JADX 번들 D8 9.1.31, 공식 SDK 37 zipalign·apksigner로 실제 빌드했습니다.
+기본 개발용 alias는 `androiddebugkey`, 기본 개발용 암호는 `android`이며 `DIZ_TEST_STOREPASS` 환경변수로 변경할 수 있습니다. 배포 APK와 업데이트 호환성을 유지하려면 같은 개인키를 사용해야 합니다. 키는 저장소나 소스 ZIP에 포함하지 않습니다.
+
+Android 13 이상에서는 [Android 공식 BluetoothGatt API](https://developer.android.com/reference/android/bluetooth/BluetoothGatt)의 값 인자 방식으로 쓰며, 이전 OS에만 deprecated API를 사용합니다. 광고·민감 기능을 원본에서 무작정 가져와 설치를 보장하는 버전이 아닙니다. 서명·정렬 검사와 보안 서비스의 안전성 판정은 별도입니다.
