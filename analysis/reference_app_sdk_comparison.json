@@ -1,0 +1,42 @@
+{
+  "mindrium": {
+    "bytes": 266756645,
+    "sha256": "7c3acc5d679f590f978943706fa923a93894ef895ad0f973d704baa40a254640",
+    "class_definitions": 2344,
+    "advertising_namespace_class_counts": {
+      "com/google/android/gms/ads/": 0,
+      "com/bytedance/sdk/openadsdk/": 0,
+      "com/applovin/": 0,
+      "com/ironsource/": 0,
+      "com/unity3d/ads/": 0,
+      "com/facebook/ads/": 0,
+      "com/vungle/": 0,
+      "com/mbridge/": 0,
+      "sg/bigo/ads/": 0,
+      "com/amazon/device/ads/": 0,
+      "com/inmobi/": 0,
+      "com/chartboost/": 0
+    },
+    "note": "Namespace counts are indicators, not a malware verdict or proof of runtime initialization."
+  },
+  "diz": {
+    "bytes": 233616526,
+    "sha256": "94331dac82401815115650592e012fe99fa2e59f43d4e860afa2a7b94a868b93",
+    "class_definitions": 114310,
+    "advertising_namespace_class_counts": {
+      "com/google/android/gms/ads/": 656,
+      "com/bytedance/sdk/openadsdk/": 2256,
+      "com/applovin/": 1350,
+      "com/ironsource/": 3019,
+      "com/unity3d/ads/": 1091,
+      "com/facebook/ads/": 3455,
+      "com/vungle/": 456,
+      "com/mbridge/": 3493,
+      "sg/bigo/ads/": 1946,
+      "com/amazon/device/ads/": 130,
+      "com/inmobi/": 0,
+      "com/chartboost/": 0
+    },
+    "note": "Namespace counts are indicators, not a malware verdict or proof of runtime initialization."
+  }
+}

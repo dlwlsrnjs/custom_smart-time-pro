@@ -1,0 +1,40 @@
+{
+  "filename": "Diz_SW01_BLE_0.2.0_TEST.apk",
+  "bytes": 24979,
+  "sha256": "ba06f4fca59b27dccc765c2df658300d794902b095ec1102f72828b6496e43b5",
+  "application_id": "com.diz.sw01.custom",
+  "version_code": 2,
+  "version_name": "0.2.0",
+  "dex_count": 1,
+  "defined_classes": [
+    "Lcom/diz/sw01/custom/MainActivity$1;",
+    "Lcom/diz/sw01/custom/MainActivity$2;",
+    "Lcom/diz/sw01/custom/MainActivity$3;",
+    "Lcom/diz/sw01/custom/MainActivity$4;",
+    "Lcom/diz/sw01/custom/MainActivity$5;",
+    "Lcom/diz/sw01/custom/MainActivity$6$1$1;",
+    "Lcom/diz/sw01/custom/MainActivity$6$1;",
+    "Lcom/diz/sw01/custom/MainActivity$6$2;",
+    "Lcom/diz/sw01/custom/MainActivity$6;",
+    "Lcom/diz/sw01/custom/MainActivity$7$1;",
+    "Lcom/diz/sw01/custom/MainActivity$7$2;",
+    "Lcom/diz/sw01/custom/MainActivity$7;",
+    "Lcom/diz/sw01/custom/MainActivity;"
+  ],
+  "all_defined_classes_are_our_ble_app": true,
+  "native_library_count": 0,
+  "zip_crc_ok": true,
+  "same_signing_certificate_as_0_1_0": true,
+  "certificate_sha256": "a80b353626387a9f1ee006775ea5c0f2e481d2f39b90b11ee2e53202e486a851",
+  "install_tested": false,
+  "ble_tested": false,
+  "manufacturer_binding_implemented": false,
+  "permission_declarations": [
+    "uses-permission: name='android.permission.BLUETOOTH' maxSdkVersion='30'",
+    "uses-permission: name='android.permission.BLUETOOTH_ADMIN' maxSdkVersion='30'",
+    "uses-permission: name='android.permission.ACCESS_FINE_LOCATION' maxSdkVersion='30'",
+    "uses-permission: name='android.permission.BLUETOOTH_SCAN' usesPermissionFlags='neverForLocation'",
+    "uses-permission: name='android.permission.BLUETOOTH_CONNECT'"
+  ],
+  "signature_v2_v3_verified": true
+}

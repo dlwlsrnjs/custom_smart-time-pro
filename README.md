@@ -10,6 +10,10 @@ SMART-TIME PRO **2.1.3.4** (`com.sma.smartv3.pro`, versionCode 8413)의 정적 �
 
 ## 다운로드
 
+**BLE 전용 0.2.0:** [검색·연결·연결 해제만 구현한 최소 앱](https://github.com/dlwlsrnjs/custom_smart-time-pro/releases/tag/ble-v0.2.0)과 [직접 빌드 가능한 소스](ble-minimal/README.md)를 추가했습니다. 이전 앱의 광고 SDK·실행 코드·네이티브를 사용하지 않고 Android BLE API로 새로 구현했습니다. 이전과 같은 테스트 서명 키를 사용하며, 설치 허용·실제 워치 연결·제조사 바인딩은 아직 검증되지 않았습니다.
+
+비교 앱의 실제 설치본·서명·설치 출처 분석은 [인증·설치 비교 기록](docs/REFERENCE_INSTALL_COMPARISON.md)에 있습니다.
+
 **실기기 확인:** S25에서 실제 차단 화면은 삼성 시스템의 `UnknownSourceAppBlockActivity`였고, OS는 Android 16/API 36, 메모리 페이지는 4KB였습니다. 내부 판정 사유는 아직 확인하지 못했습니다. [최신 기기 진단](docs/DEVICE_BLOCK_DIAGNOSIS.md)을 참고하세요.
 
 [별도 앱 ID의 Diz SW01 Custom 0.1.0 테스트 빌드](https://github.com/dlwlsrnjs/custom_smart-time-pro/releases/tag/custom-v0.1.0-identity)
