@@ -1,6 +1,7 @@
 /workspace/
 /.downloads/
 /dist/
+/work/
 *.apk
 *.xapk
 *.apks

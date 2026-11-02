@@ -1,5 +1,7 @@
 # 원본 UI와 기능을 유지하는 워치 케어
 
+**작업을 처음 시작한다면 [커스터마이징 작업 가이드](WATCH_CARE_CUSTOMIZATION.md)를 먼저 읽으세요.** 최신 APK를 기준으로 화면과 기능을 수정하는 절차, 서명과 빌드 스크립트, 설치 시험, 오류 대응을 설명합니다. 이 문서는 0.4.0의 변경 내역과 과거 전체 분석본에서의 재구성 경로를 기록합니다.
+
 0.4.0은 SMART-TIME PRO의 화면과 기능을 새로 그린 앱이 아닙니다. 기존 재패키징 작업 공간의 XML·이미지·폰트·앱 코드·워치 SDK를 유지하고, 선택 기능의 초기화와 Manifest를 수정한 ARM64 단일 APK입니다. `ble-minimal`의 독립 센서 앱과 구분합니다.
 
 ## 현재 변경
@@ -15,7 +17,7 @@
 
 ## 직접 재빌드
 
-전체 분석 작업 공간의 `diz-custom` 디렉터리와 `editable/base/smali_classes18`, `editable/base/smali_classes19`가 필요합니다. Git 저장소만으로는 전체 제3자 SDK와 바이너리가 제공되지 않습니다.
+전체 분석 작업 공간의 `diz-custom` 디렉터리와 `editable/base/smali_classes18`, `editable/base/smali_classes19`가 필요합니다. 과거 분석 ZIP에는 `diz-custom`이 포함되지 않으므로 [가이드 12절](WATCH_CARE_CUSTOMIZATION.md#12-전체-분석본에서-다시-조립하는-고급-경로)의 선행 재구성을 수행해야 합니다. 일반 UI 작업은 최신 APK를 디코드하는 경로를 사용합니다. Git 저장소만으로는 전체 제3자 SDK와 바이너리가 제공되지 않습니다.
 
 ```powershell
 python scripts/PrepareOriginalUI.py --workspace <SMART_TIME_PRO_customization> --output-dir <새로운_빌드_디렉터리>
